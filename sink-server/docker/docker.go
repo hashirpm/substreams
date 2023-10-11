@@ -493,11 +493,7 @@ func (e *DockerEngine) Shutdown(zlog *zap.Logger) (err error) {
 	return err
 }
 
-func (e *DockerEngine) createManifest(deploymentID string, token string, pkg *pbsubstreams.Package) (content []byte, usedPorts []uint32, services map[string]string, runMeFirst []string, err error) {
-
-	if pkg.SinkConfig.TypeUrl != "sf.substreams.sink.sql.v1.Service" {
-		return nil, nil, nil, nil, fmt.Errorf("invalid sinkconfig type: %q. Only sf.substreams.sink.sql.v1.Service is supported for now.", pkg.SinkConfig.TypeUrl)
-	}
+func (e *DockerEngine) createSQLManifest(deploymentID string, token string, pkg *pbsubstreams.Package) (content []byte, usedPorts []uint32, services map[string]string, runMeFirst []string, err error) {
 	sqlSvc := &pbsql.Service{}
 	if err := pkg.SinkConfig.UnmarshalTo(sqlSvc); err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("cannot unmarshal sinkconfig: %w", err)
@@ -547,6 +543,79 @@ func (e *DockerEngine) createManifest(deploymentID string, token string, pkg *pb
 	content, err = yaml.Marshal(config)
 	return
 
+}
+
+func (e *DockerEngine) createSubgraphManifest(deploymentID string, token string, pkg *pbsubstreams.Package) (content []byte, usedPorts []uint32, services map[string]string, runMeFirst []string, err error) {
+
+	//
+	subgraphSvc := &pbsubgraph.Service{}
+
+	if err := pkg.SinkConfig.UnmarshalTo(sqlSvc); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("cannot unmarshal sinkconfig: %w", err)
+	}
+
+	services = make(map[string]string)
+
+	pg, pgMotd, err := e.newPostgres(deploymentID, pkg)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("creating postgres deployment: %w", err)
+	}
+
+	// FIXME: need IPFS
+	//ipfs, ipfsMotd, err := e.newIPFS()
+
+	runMeFirst = append(runMeFirst, pg.Name, ipfs.Name)
+
+	// note: graphnode is the sink
+	graphnode, graphnodeMotd, err := e.newGraphnode(deploymentID, pkg, pg.Name, ipfs.Name)
+	//pg, pgMotd, err := e.newPostgres(deploymentID, pkg)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("creating postgres deployment: %w", err)
+	}
+	services[graphnode.Name] = graphnodeMotd
+
+	config := types.Config{
+		Version: "3",
+		Services: []types.ServiceConfig{
+			pg,
+			ipfs,
+			graphnode,
+		},
+	}
+
+	if sqlSvc.PgwebFrontend != nil && sqlSvc.PgwebFrontend.Enabled {
+		pgweb, motd := e.newPGWeb(deploymentID, pg.Name)
+		services[pgweb.Name] = motd
+		config.Services = append(config.Services, pgweb)
+	}
+
+	if sqlSvc.PostgraphileFrontend != nil && sqlSvc.PostgraphileFrontend.Enabled {
+		postgraphile, motd := e.newPostgraphile(deploymentID, pg.Name)
+		services[postgraphile.Name] = motd
+		config.Services = append(config.Services, postgraphile)
+	}
+
+	for _, svc := range config.Services {
+		for _, port := range svc.Ports {
+			usedPorts = append(usedPorts, port.Published)
+		}
+	}
+
+	content, err = yaml.Marshal(config)
+	return
+
+}
+
+func (e *DockerEngine) createManifest(deploymentID string, token string, pkg *pbsubstreams.Package) (content []byte, usedPorts []uint32, services map[string]string, runMeFirst []string, err error) {
+
+	switch pkg.SinkConfig.TypeUrl {
+	case "sf.substreams.sink.sql.v1.Service":
+		return e.createSQLManifest(deploymentID, token, pkg)
+	case "sf.substreams.sink.subgraph.v1.Service":
+		return e.createSubgraphManifest(deploymentID, token, pkg)
+	default:
+		return nil, nil, nil, nil, fmt.Errorf("invalid sinkconfig type: %q. Only sf.substreams.sink.sql.v1.Service and sf.substreams.sink.subgraph.v1.Service are supported for now.", pkg.SinkConfig.TypeUrl)
+	}
 	//  clickhouse:
 	//    container_name: clickhouse-ssp
 	//    image: clickhouse/clickhouse-server
