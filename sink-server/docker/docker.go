@@ -580,27 +580,32 @@ func (e *DockerEngine) createSubgraphManifest(deploymentID string, token string,
 	//		return nil, nil, nil, nil, fmt.Errorf("cannot unmarshal sinkconfig: %w", err)
 	//	}
 
-	//// note: graphnode is the sink
-	//graphnode, graphnodeMotd, err := e.newGraphnode(deploymentID, pkg, pg.Name, ipfs.Name)
-	////pg, pgMotd, err := e.newPostgres(deploymentID, pkg)
-	//if err != nil {
-	//	return nil, nil, nil, nil, fmt.Errorf("creating postgres deployment: %w", err)
-	//}
-	//services[graphnode.Name] = graphnodeMotd
+	graphnode, graphnodeMotd, err := e.newGraphNode(deploymentID, pg.Name, ipfs.Name, pkg)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("creating graphnode deployment: %w", err)
+	}
+	services[graphnode.Name] = graphnodeMotd
+
+	graphdeploy, graphDeployMotd, err := e.newGraphDeploy(deploymentID, ipfs.Name, graphnode.Name, pkg)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("creating graphdeploy deployment: %w", err)
+	}
+	services[graphdeploy.Name] = graphDeployMotd
 
 	config := types.Config{
 		Version: "3",
 		Services: []types.ServiceConfig{
 			pg,
 			ipfs,
-			//graphnode,
+			graphnode,
+			graphdeploy,
 		},
 	}
 
 	//if sqlSvc.PgwebFrontend != nil && sqlSvc.PgwebFrontend.Enabled {
-	//	pgweb, motd := e.newPGWeb(deploymentID, pg.Name)
-	//	services[pgweb.Name] = motd
-	//	config.Services = append(config.Services, pgweb)
+	pgweb, motd := e.newPGWeb(deploymentID, pg.Name)
+	services[pgweb.Name] = motd
+	config.Services = append(config.Services, pgweb)
 	//}
 
 	//if sqlSvc.PostgraphileFrontend != nil && sqlSvc.PostgraphileFrontend.Enabled {
