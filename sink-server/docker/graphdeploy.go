@@ -6,12 +6,13 @@ import (
 	"path/filepath"
 
 	"github.com/docker/cli/cli/compose/types"
+	pbgraph "github.com/streamingfast/substreams-sink-subgraph/pb/sf/substreams/sink/subgraph/v1"
 	pbsubstreams "github.com/streamingfast/substreams/pb/sf/substreams/v1"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 )
 
-func (e *DockerEngine) newGraphDeploy(deploymentID string, ipfsService string, graphnodeService string, pkg *pbsubstreams.Package) (conf types.ServiceConfig, motd string, err error) {
+func (e *DockerEngine) newGraphDeploy(deploymentID string, ipfsService string, graphnodeService string, pkg *pbsubstreams.Package, pbsvc *pbgraph.Service) (conf types.ServiceConfig, motd string, err error) {
 
 	name := graphdeployServiceName(deploymentID)
 
@@ -65,74 +66,14 @@ func (e *DockerEngine) newGraphDeploy(deploymentID string, ipfsService string, g
 		return conf, motd, fmt.Errorf("writing file: %w", err)
 	}
 
-	//FIXME
-	schemaGraphql := []byte(`
-type approvals @entity {
-    id: ID!
-    evt_tx_hash: String!
-    evt_index: Int!
-    evt_block_time: String!
-    evt_block_number: Int!
-    approved: String!
-    owner: String!
-    token_id: BigDecimal!
-}
-type approval_for_alls @entity {
-    id: ID!
-    evt_tx_hash: String!
-    evt_index: Int!
-    evt_block_time: String!
-    evt_block_number: Int!
-    approved: Boolean!
-    operator: String!
-    owner: String!
-}
-type mints @entity {
-    id: ID!
-    evt_tx_hash: String!
-    evt_index: Int!
-    evt_block_time: String!
-    evt_block_number: Int!
-    u_project_id: BigDecimal!
-    u_to: String!
-    u_token_id: BigDecimal!
-}
-type transfers @entity {
-    id: ID!
-    evt_tx_hash: String!
-    evt_index: Int!
-    evt_block_time: String!
-    evt_block_number: Int!
-    from: String!
-    to: String!
-    token_id: BigDecimal!
-}
-`)
+	schemaGraphql := []byte(pbsvc.Schema)
 	if err := os.WriteFile(filepath.Join(configFolder, "schema.graphql"), schemaGraphql, 0644); err != nil {
 		return conf, motd, fmt.Errorf("writing file: %w", err)
 	}
 
-	//FIXME
-	substreamsYaml := []byte(`specVersion: 0.0.6
-description: Substreams powered art-blocks
-repository: https://github.com/streamingfast/substreams-generated-library
-schema:
-  file: ./schema.graphql
-
-dataSources:
-  - kind: substreams
-    name: art_blocks_graph
-    network: mainnet
-    source:
-      package:
-        moduleName: graph_out
-        file: substreams.spkg
-    mapping:
-      kind: substreams/graph-entities
-      apiVersion: 0.0.5`)
-
+	subgraphYaml := []byte(pbsvc.SubgraphYaml)
 	sgyaml := &yaml.Node{}
-	yaml.Unmarshal(substreamsYaml, sgyaml)
+	yaml.Unmarshal(subgraphYaml, sgyaml)
 
 	dataSources := getChild(sgyaml.Content[0], "dataSources")
 	var found bool

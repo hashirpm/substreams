@@ -22,6 +22,8 @@ import (
 
 	types "github.com/docker/cli/cli/compose/types"
 	pbsql "github.com/streamingfast/substreams-sink-sql/pb/sf/substreams/sink/sql/v1"
+	pbgraph "github.com/streamingfast/substreams-sink-subgraph/pb/sf/substreams/sink/subgraph/v1"
+
 	"github.com/streamingfast/substreams/manifest"
 	pbsinksvc "github.com/streamingfast/substreams/pb/sf/substreams/sink/service/v1"
 	pbsubstreams "github.com/streamingfast/substreams/pb/sf/substreams/v1"
@@ -559,6 +561,11 @@ func (e *DockerEngine) createSQLManifest(deploymentID string, token string, pkg 
 
 func (e *DockerEngine) createSubgraphManifest(deploymentID string, token string, pkg *pbsubstreams.Package) (content []byte, usedPorts []uint32, services map[string]string, runMeFirst []string, err error) {
 
+	graphSvc := &pbgraph.Service{}
+	if err := pkg.SinkConfig.UnmarshalTo(graphSvc); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("cannot unmarshal sinkconfig: %w", err)
+	}
+
 	services = make(map[string]string)
 
 	pg, pgMotd, err := e.newPostgres(deploymentID, pkg)
@@ -575,18 +582,13 @@ func (e *DockerEngine) createSubgraphManifest(deploymentID string, token string,
 
 	runMeFirst = append(runMeFirst, pg.Name, ipfs.Name)
 
-	//	subgraphSvc := &pbsubgraph.Service{}
-	//	if err := pkg.SinkConfig.UnmarshalTo(subgraphSvc); err != nil {
-	//		return nil, nil, nil, nil, fmt.Errorf("cannot unmarshal sinkconfig: %w", err)
-	//	}
-
 	graphnode, graphnodeMotd, err := e.newGraphNode(deploymentID, pg.Name, ipfs.Name, pkg)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("creating graphnode deployment: %w", err)
 	}
 	services[graphnode.Name] = graphnodeMotd
 
-	graphdeploy, graphDeployMotd, err := e.newGraphDeploy(deploymentID, ipfs.Name, graphnode.Name, pkg)
+	graphdeploy, graphDeployMotd, err := e.newGraphDeploy(deploymentID, ipfs.Name, graphnode.Name, pkg, graphSvc)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("creating graphdeploy deployment: %w", err)
 	}
