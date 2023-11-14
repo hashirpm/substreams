@@ -128,3 +128,114 @@ var Stream_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "sf/substreams/rpc/v2/service.proto",
 }
+
+// ObserveClient is the client API for Observe service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type ObserveClient interface {
+	Attach(ctx context.Context, in *AttachRequest, opts ...grpc.CallOption) (Observe_AttachClient, error)
+}
+
+type observeClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewObserveClient(cc grpc.ClientConnInterface) ObserveClient {
+	return &observeClient{cc}
+}
+
+func (c *observeClient) Attach(ctx context.Context, in *AttachRequest, opts ...grpc.CallOption) (Observe_AttachClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Observe_ServiceDesc.Streams[0], "/sf.substreams.rpc.v2.Observe/Attach", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &observeAttachClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Observe_AttachClient interface {
+	Recv() (*AttachResponse, error)
+	grpc.ClientStream
+}
+
+type observeAttachClient struct {
+	grpc.ClientStream
+}
+
+func (x *observeAttachClient) Recv() (*AttachResponse, error) {
+	m := new(AttachResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ObserveServer is the server API for Observe service.
+// All implementations should embed UnimplementedObserveServer
+// for forward compatibility
+type ObserveServer interface {
+	Attach(*AttachRequest, Observe_AttachServer) error
+}
+
+// UnimplementedObserveServer should be embedded to have forward compatible implementations.
+type UnimplementedObserveServer struct {
+}
+
+func (UnimplementedObserveServer) Attach(*AttachRequest, Observe_AttachServer) error {
+	return status.Errorf(codes.Unimplemented, "method Attach not implemented")
+}
+
+// UnsafeObserveServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ObserveServer will
+// result in compilation errors.
+type UnsafeObserveServer interface {
+	mustEmbedUnimplementedObserveServer()
+}
+
+func RegisterObserveServer(s grpc.ServiceRegistrar, srv ObserveServer) {
+	s.RegisterService(&Observe_ServiceDesc, srv)
+}
+
+func _Observe_Attach_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(AttachRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ObserveServer).Attach(m, &observeAttachServer{stream})
+}
+
+type Observe_AttachServer interface {
+	Send(*AttachResponse) error
+	grpc.ServerStream
+}
+
+type observeAttachServer struct {
+	grpc.ServerStream
+}
+
+func (x *observeAttachServer) Send(m *AttachResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+// Observe_ServiceDesc is the grpc.ServiceDesc for Observe service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Observe_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "sf.substreams.rpc.v2.Observe",
+	HandlerType: (*ObserveServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Attach",
+			Handler:       _Observe_Attach_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "sf/substreams/rpc/v2/service.proto",
+}

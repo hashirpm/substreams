@@ -49,6 +49,23 @@ message Request {
   repeated string debug_initial_store_snapshot_for_modules = 10;
 }
 
+service Observe {
+    rpc Attach(AttachRequest) returns (stream AttachResponse);
+}
+
+message AttachRequest {}
+message AttachResponse{
+    oneof message {
+        AttachInit init = 1;
+        ModulesProgress progress = 2; // Progress of data preparation, before sending in the stream of `data` events.
+        Error error = 3;
+    }
+}
+
+message AttachInit {
+    Request original_request = 1;
+    SessionInit session = 2;
+}
 
 message Response {
   oneof message {

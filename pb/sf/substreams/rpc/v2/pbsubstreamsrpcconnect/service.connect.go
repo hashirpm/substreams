@@ -23,6 +23,8 @@ const _ = connect_go.IsAtLeastVersion0_1_0
 const (
 	// StreamName is the fully-qualified name of the Stream service.
 	StreamName = "sf.substreams.rpc.v2.Stream"
+	// ObserveName is the fully-qualified name of the Observe service.
+	ObserveName = "sf.substreams.rpc.v2.Observe"
 )
 
 // StreamClient is a client for the sf.substreams.rpc.v2.Stream service.
@@ -83,4 +85,64 @@ type UnimplementedStreamHandler struct{}
 
 func (UnimplementedStreamHandler) Blocks(context.Context, *connect_go.Request[v2.Request], *connect_go.ServerStream[v2.Response]) error {
 	return connect_go.NewError(connect_go.CodeUnimplemented, errors.New("sf.substreams.rpc.v2.Stream.Blocks is not implemented"))
+}
+
+// ObserveClient is a client for the sf.substreams.rpc.v2.Observe service.
+type ObserveClient interface {
+	Attach(context.Context, *connect_go.Request[v2.AttachRequest]) (*connect_go.ServerStreamForClient[v2.AttachResponse], error)
+}
+
+// NewObserveClient constructs a client for the sf.substreams.rpc.v2.Observe service. By default, it
+// uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
+// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
+// connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewObserveClient(httpClient connect_go.HTTPClient, baseURL string, opts ...connect_go.ClientOption) ObserveClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	return &observeClient{
+		attach: connect_go.NewClient[v2.AttachRequest, v2.AttachResponse](
+			httpClient,
+			baseURL+"/sf.substreams.rpc.v2.Observe/Attach",
+			opts...,
+		),
+	}
+}
+
+// observeClient implements ObserveClient.
+type observeClient struct {
+	attach *connect_go.Client[v2.AttachRequest, v2.AttachResponse]
+}
+
+// Attach calls sf.substreams.rpc.v2.Observe.Attach.
+func (c *observeClient) Attach(ctx context.Context, req *connect_go.Request[v2.AttachRequest]) (*connect_go.ServerStreamForClient[v2.AttachResponse], error) {
+	return c.attach.CallServerStream(ctx, req)
+}
+
+// ObserveHandler is an implementation of the sf.substreams.rpc.v2.Observe service.
+type ObserveHandler interface {
+	Attach(context.Context, *connect_go.Request[v2.AttachRequest], *connect_go.ServerStream[v2.AttachResponse]) error
+}
+
+// NewObserveHandler builds an HTTP handler from the service implementation. It returns the path on
+// which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewObserveHandler(svc ObserveHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
+	mux := http.NewServeMux()
+	mux.Handle("/sf.substreams.rpc.v2.Observe/Attach", connect_go.NewServerStreamHandler(
+		"/sf.substreams.rpc.v2.Observe/Attach",
+		svc.Attach,
+		opts...,
+	))
+	return "/sf.substreams.rpc.v2.Observe/", mux
+}
+
+// UnimplementedObserveHandler returns CodeUnimplemented from all methods.
+type UnimplementedObserveHandler struct{}
+
+func (UnimplementedObserveHandler) Attach(context.Context, *connect_go.Request[v2.AttachRequest], *connect_go.ServerStream[v2.AttachResponse]) error {
+	return connect_go.NewError(connect_go.CodeUnimplemented, errors.New("sf.substreams.rpc.v2.Observe.Attach is not implemented"))
 }
